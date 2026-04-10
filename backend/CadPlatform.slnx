@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="CadPlatform.API/CadPlatform.API.csproj" />
+  <Project Path="CadPlatform.Application/CadPlatform.Application.csproj" />
+  <Project Path="CadPlatform.Domain/CadPlatform.Domain.csproj" />
+  <Project Path="CadPlatform.Infrastructure/CadPlatform.Infrastructure.csproj" />
+</Solution>

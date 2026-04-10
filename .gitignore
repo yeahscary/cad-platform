@@ -1,0 +1,13 @@
+# Backend
+backend/*/bin/
+backend/*/obj/
+backend/**/*.user
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Системные
+.DS_Store
+*.suo
+.vs/
