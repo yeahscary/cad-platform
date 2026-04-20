@@ -1,0 +1,11 @@
+{
+  "id": 3,
+  "title": "Прямоугольник 200x100",
+  "description": "Постройте прямоугольник",
+  "difficulty": "medium",
+  "skills": ["geometry"],
+  "rules": {
+    "width": 200,
+    "height": 100
+  }
+}
