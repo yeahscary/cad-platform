@@ -1,0 +1,10 @@
+{
+  "id": 2,
+  "title": "Окружность",
+  "description": "Постройте окружность радиусом 50",
+  "difficulty": "easy",
+  "skills": ["circle"],
+  "rules": {
+    "radius": 50
+  }
+}
