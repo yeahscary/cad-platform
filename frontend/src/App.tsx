@@ -4,6 +4,9 @@ import { store } from './store/index';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import TestListPage from './pages/TestListPage';
+import TestPage from './pages/TestPage';
+import ResultsPage from './pages/ResultsPage';
+import TeacherPage from './pages/TeacherPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isAuth = useSelector((s: any) => s.auth.isAuth);
@@ -18,6 +21,15 @@ function AppRoutes() {
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/tests" element={
           <ProtectedRoute><TestListPage /></ProtectedRoute>
+        } />
+        <Route path="/test/:id" element={
+          <ProtectedRoute><TestPage /></ProtectedRoute>
+        } />
+        <Route path="/results" element={
+          <ProtectedRoute><ResultsPage /></ProtectedRoute>
+        } />
+        <Route path="/teacher" element={
+          <ProtectedRoute><TeacherPage /></ProtectedRoute>
         } />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
