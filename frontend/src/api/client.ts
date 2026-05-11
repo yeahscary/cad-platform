@@ -13,3 +13,18 @@ apiClient.interceptors.request.use(config => {
   }
   return config;
 });
+export const uploadReference = async (questionId: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    const res = await apiClient.post(
+        `/cad/reference/${questionId}`,
+        form,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
+    return res.data;
+};
+
+export const checkReferenceExists = async (questionId: string) => {
+    const res = await apiClient.get(`/cad/reference/${questionId}/exists`);
+    return res.data.exists as boolean;
+};

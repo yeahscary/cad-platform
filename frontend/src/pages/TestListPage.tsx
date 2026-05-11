@@ -86,7 +86,9 @@ export default function TestListPage() {
                 <Button
                   variant="contained"
                   sx={{ borderRadius: 2 }}
-                  onClick={() => navigate(`/test/${test.id}`)}
+                  onClick={() => navigate(
+                    role === 'Teacher' ? `/teacher/test/${test.id}` : `/test/${test.id}`
+                  )}
                 >
                   {role === 'Teacher' ? 'Посмотреть' : 'Начать тест'}
                 </Button>

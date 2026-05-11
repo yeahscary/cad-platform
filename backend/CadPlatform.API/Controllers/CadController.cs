@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using CadPlatform.Infrastructure.Persistence;
 using CadPlatform.Domain.Entities;
+using CadPlatform.Infrastructure.CadProcessing;
+using Microsoft.EntityFrameworkCore;
 
 namespace CadPlatform.API.Controllers;
 
@@ -10,66 +12,157 @@ public class CadController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly IWebHostEnvironment _env;
+    private readonly DxfCheckerService _checker;
 
     public CadController(AppDbContext db, IWebHostEnvironment env)
     {
         _db = db;
         _env = env;
+        _checker = new DxfCheckerService();
     }
 
-    // Загрузка DWG/DXF файла студентом
+    // Преподаватель загружает эталонный чертёж для вопроса
+    [HttpPost("reference/{questionId}")]
+    public async Task<IActionResult> UploadReference(Guid questionId, IFormFile file)
+    {
+        var ext = Path.GetExtension(file.FileName).ToLower();
+        if (ext != ".dwg" && ext != ".dxf")
+            return BadRequest(new { error = "Только файлы DWG и DXF" });
+
+        var uploadDir = Path.Combine(_env.ContentRootPath, "uploads", "reference");
+        Directory.CreateDirectory(uploadDir);
+
+        // Удаляем старый эталон если был
+        var oldPath = Path.Combine(uploadDir, $"{questionId}{ext}");
+        if (System.IO.File.Exists(oldPath))
+            System.IO.File.Delete(oldPath);
+
+        var fileName = $"{questionId}{ext}";
+        var filePath = Path.Combine(uploadDir, fileName);
+
+        using (var stream = new FileStream(filePath, FileMode.Create))
+        {
+            await file.CopyToAsync(stream);
+        }
+
+        return Ok(new
+        {
+            questionId,
+            fileName = file.FileName,
+            message = "Эталонный чертёж загружен успешно"
+        });
+    }
+
+    // Проверить есть ли эталон для вопроса
+    [HttpGet("reference/{questionId}/exists")]
+    public IActionResult ReferenceExists(Guid questionId)
+    {
+        var uploadDir = Path.Combine(_env.ContentRootPath, "uploads", "reference");
+        var dwgPath = Path.Combine(uploadDir, $"{questionId}.dwg");
+        var dxfPath = Path.Combine(uploadDir, $"{questionId}.dxf");
+
+        bool exists = System.IO.File.Exists(dwgPath) || System.IO.File.Exists(dxfPath);
+        return Ok(new { exists });
+    }
+
+    // Студент загружает свой чертёж
     [HttpPost("upload/{attemptId}/{questionId}")]
     public async Task<IActionResult> Upload(
         Guid attemptId,
         Guid questionId,
         IFormFile file)
     {
-        // Проверяем расширение файла
         var ext = Path.GetExtension(file.FileName).ToLower();
         if (ext != ".dwg" && ext != ".dxf")
             return BadRequest(new { error = "Только файлы DWG и DXF" });
 
-        // Проверяем размер — не больше 50 МБ
         if (file.Length > 52_428_800)
             return BadRequest(new { error = "Файл слишком большой (макс. 50 МБ)" });
 
-        // Папка для сохранения файлов
+        // Сохраняем файл студента
         var uploadDir = Path.Combine(_env.ContentRootPath, "uploads", "cad");
         Directory.CreateDirectory(uploadDir);
 
-        // Уникальное имя файла
         var fileName = $"{attemptId}_{questionId}_{Guid.NewGuid()}{ext}";
         var filePath = Path.Combine(uploadDir, fileName);
 
-        // Сохраняем файл
         using (var stream = new FileStream(filePath, FileMode.Create))
         {
             await file.CopyToAsync(stream);
         }
 
-        // Находим ответ студента
+        DxfCheckResult checkResult;
+
+        // Ищем эталонный чертёж для этого вопроса
+        var refDir = Path.Combine(_env.ContentRootPath, "uploads", "reference");
+        var refDxfPath = Path.Combine(refDir, $"{questionId}.dxf");
+        var refDwgPath = Path.Combine(refDir, $"{questionId}.dwg");
+
+        bool hasReference = System.IO.File.Exists(refDxfPath) ||
+                            System.IO.File.Exists(refDwgPath);
+
+        if (hasReference && ext == ".dxf")
+        {
+            // Есть эталон и файл студента DXF — полная проверка с масштабом
+            string refPath = System.IO.File.Exists(refDxfPath) ? refDxfPath : refDwgPath;
+
+            var settings = new CadCheckSettings
+            {
+                TolerancePercent = 5.0,
+                CheckLineCount = true,
+                CheckCircleCount = true,
+                CheckProportions = true,
+                CheckDimensions = false
+            };
+
+            // Если эталон DXF — сравниваем полностью
+            if (refPath.EndsWith(".dxf"))
+            {
+                checkResult = _checker.CheckWithReference(filePath, refPath, settings);
+            }
+            else
+            {
+                // Эталон DWG — базовая проверка
+                checkResult = _checker.Check(filePath, settings);
+            }
+        }
+        else if (ext == ".dxf")
+        {
+            // Нет эталона но файл DXF — проверяем что не пустой
+            checkResult = _checker.Check(filePath, new CadCheckSettings());
+        }
+        else
+        {
+            // DWG файл — проверяем заголовок
+            var fileInfo = new FileInfo(filePath);
+            var header = new byte[6];
+            using var fs = new FileStream(filePath, FileMode.Open);
+            await fs.ReadAsync(header.AsMemory(0, 6));
+            var headerStr = System.Text.Encoding.ASCII.GetString(header);
+            bool validDwg = headerStr.StartsWith("AC") && fileInfo.Length > 100;
+
+            checkResult = new DxfCheckResult
+            {
+                Passed = validDwg,
+                ScorePercent = validDwg ? 100 : 0,
+                Summary = validDwg ? "DWG файл принят" : "Файл повреждён"
+            };
+        }
+
+        // Сохраняем результат
         var answer = _db.StudentAnswers
             .FirstOrDefault(a => a.AttemptId == attemptId && a.QuestionId == questionId);
 
         if (answer == null)
         {
-            // Создаём новый ответ если его нет
             answer = new StudentAnswer
             {
                 AttemptId = attemptId,
-                QuestionId = questionId,
-                IsCorrect = null,
-                EarnedPoints = null
+                QuestionId = questionId
             };
             _db.StudentAnswers.Add(answer);
         }
 
-        await _db.SaveChangesAsync();
-
-        // Запускаем простую проверку файла
-        var checkResult = await CheckCadFile(filePath, ext);
-
-        // Обновляем результат ответа
         answer.IsCorrect = checkResult.Passed;
         answer.EarnedPoints = checkResult.Passed ? 3 : 0;
         await _db.SaveChangesAsync();
@@ -78,37 +171,12 @@ public class CadController : ControllerBase
         {
             fileName = file.FileName,
             status = checkResult.Passed ? "Passed" : "Failed",
-            message = checkResult.Message,
-            score = answer.EarnedPoints
+            message = checkResult.Summary,
+            score = answer.EarnedPoints,
+            scaleFactor = checkResult.ScaleFactor,
+            passedChecks = checkResult.PassedChecks,
+            errors = checkResult.Errors,
+            hasReference
         });
     }
-
-    // Простая проверка CAD файла
-    private async Task<CadCheckResult> CheckCadFile(string filePath, string ext)
-    {
-        await Task.Delay(500); // имитация обработки
-
-        var fileInfo = new FileInfo(filePath);
-
-        // Проверяем что файл не пустой
-        if (fileInfo.Length < 100)
-            return new CadCheckResult(false, "Файл пустой или повреждён");
-
-        // Проверяем заголовок DWG файла
-        if (ext == ".dwg")
-        {
-            var header = new byte[6];
-            using var fs = new FileStream(filePath, FileMode.Open);
-            await fs.ReadAsync(header, 0, 6);
-            var headerStr = System.Text.Encoding.ASCII.GetString(header);
-
-            // DWG файлы начинаются с "AC" (AutoCAD)
-            if (!headerStr.StartsWith("AC"))
-                return new CadCheckResult(false, "Файл не является корректным DWG файлом");
-        }
-
-        return new CadCheckResult(true, "Файл успешно проверен и принят");
-    }
 }
-
-public record CadCheckResult(bool Passed, string Message);
