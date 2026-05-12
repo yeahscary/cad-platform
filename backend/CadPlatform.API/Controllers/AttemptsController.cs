@@ -133,7 +133,55 @@ public class AttemptsController : ControllerBase
 
         return Ok(results);
     }
+    // Детальный результат одной попытки
+    [HttpGet("{attemptId}/details")]
+    public IActionResult AttemptDetails(Guid attemptId)
+    {
+        var attempt = _db.TestAttempts
+            .Include(a => a.Test)
+                .ThenInclude(t => t.Questions)
+                    .ThenInclude(q => q.Options)
+            .Include(a => a.Answers)
+            .FirstOrDefault(a => a.Id == attemptId);
 
+        if (attempt == null) return NotFound();
+
+        var details = attempt.Test.Questions
+            .OrderBy(q => q.OrderIndex)
+            .Select(q =>
+            {
+                var answer = attempt.Answers
+                    .FirstOrDefault(a => a.QuestionId == q.Id);
+
+                return new
+                {
+                    questionText = q.Text,
+                    questionType = q.Type,
+                    points = q.Points,
+                    earnedPoints = answer?.EarnedPoints ?? 0,
+                    isCorrect = answer?.IsCorrect,
+                    options = q.Options
+                        .OrderBy(o => o.OrderIndex)
+                        .Select(o => new
+                        {
+                            o.Text,
+                            o.IsCorrect,
+                            wasSelected = answer != null &&
+                                        answer.SelectedOptionIds.Contains(o.Id)
+                        })
+                };
+            }).ToList();
+
+        return Ok(new
+        {
+            testTitle = attempt.Test.Title,
+            score = attempt.Score,
+            maxScore = attempt.MaxScore,
+            startedAt = attempt.StartedAt,
+            finishedAt = attempt.FinishedAt,
+            questions = details
+        });
+    }
     // Все результаты — для преподавателя
     [HttpGet("all")]
     public IActionResult AllResults()

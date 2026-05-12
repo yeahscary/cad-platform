@@ -8,6 +8,8 @@ import TestPage from './pages/TestPage';
 import ResultsPage from './pages/ResultsPage';
 import TeacherPage from './pages/TeacherPage';
 import TeacherTestPage from './pages/TeacherTestPage';
+import CreateTestPage from './pages/CreateTestPage';
+import AttemptDetailsPage from './pages/AttemptDetailsPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isAuth = useSelector((s: any) => s.auth.isAuth);
@@ -34,7 +36,13 @@ function AppRoutes() {
         } />
         <Route path="*" element={<Navigate to="/login" replace />} />
         <Route path="/teacher/test/:id" element={
-           <ProtectedRoute><TeacherTestPage /></ProtectedRoute>
+          <ProtectedRoute><TeacherTestPage /></ProtectedRoute>
+        } />
+        <Route path="/create-test" element={
+          <ProtectedRoute><CreateTestPage /></ProtectedRoute>
+        } />
+        <Route path="/attempt/:attemptId" element={
+          <ProtectedRoute><AttemptDetailsPage /></ProtectedRoute>
         } />
       </Routes>
     </BrowserRouter>

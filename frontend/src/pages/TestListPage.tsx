@@ -7,6 +7,7 @@ import {
 } from '@mui/material';
 import { logout } from '../store/authSlice';
 import { apiClient } from '../api/client';
+import AddIcon from '@mui/icons-material/Add';
 
 export default function TestListPage() {
   const dispatch = useDispatch();
@@ -46,6 +47,16 @@ export default function TestListPage() {
             </Button>
           )}
           <Button color="inherit" onClick={handleLogout}>Выйти</Button>
+          {role === 'Teacher' && (
+            <Button
+              color="inherit"
+              startIcon={<AddIcon />}
+              onClick={() => navigate('/create-test')}
+              sx={{ mr: 1 }}
+            >
+              Создать тест
+             </Button>
+            )}
         </Toolbar>
       </AppBar>
 

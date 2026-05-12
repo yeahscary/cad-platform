@@ -19,29 +19,44 @@ export default function TestPage() {
   const [selected, setSelected] = useState<string[]>([]);
   const [answers, setAnswers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [finished, setFinished] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [cadDone, setCadDone] = useState(false);
 
+  // Если userId нет — отправляем на логин
   useEffect(() => {
+    if (!userId) {
+      navigate('/login');
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId) return;
+
     const init = async () => {
-      const { data: testData } = await apiClient.get(`/tests/${id}`);
-      setTest(testData);
+      try {
+        const { data: testData } = await apiClient.get(`/tests/${id}`);
+        setTest(testData);
 
-      if (testData.timeLimitMinutes) {
-        setTimeLeft(testData.timeLimitMinutes * 60);
+        if (testData.timeLimitMinutes) {
+          setTimeLeft(testData.timeLimitMinutes * 60);
+        }
+
+        const { data: attempt } = await apiClient.post('/attempts/start', {
+          testId: id,
+          studentId: userId
+        });
+        setAttemptId(attempt.id);
+      } catch (e) {
+        setError('Ошибка загрузки теста. Попробуйте снова.');
+      } finally {
+        setLoading(false);
       }
-
-      const { data: attempt } = await apiClient.post('/attempts/start', {
-        testId: id,
-        studentId: userId
-      });
-      setAttemptId(attempt.id);
-      setLoading(false);
     };
     init();
-  }, [id]);
+  }, [id, userId]);
 
   useEffect(() => {
     if (timeLeft === null || finished) return;
@@ -121,6 +136,15 @@ export default function TestPage() {
     </Box>
   );
 
+  if (error) return (
+    <Box sx={{ maxWidth: 600, mx: 'auto', mt: 8, p: 3 }}>
+      <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
+      <Button variant="contained" onClick={() => navigate('/tests')}>
+        Вернуться к тестам
+      </Button>
+    </Box>
+  );
+
   if (finished && result) return (
     <Box sx={{ maxWidth: 600, mx: 'auto', mt: 8, p: 3, textAlign: 'center' }}>
       <Paper elevation={3} sx={{ p: 4, borderRadius: 3 }}>
@@ -172,7 +196,6 @@ export default function TestPage() {
       </Typography>
 
       <Paper elevation={2} sx={{ p: 3, borderRadius: 2, mb: 3 }}>
-
         {isCadQuestion(currentQuestion.type) ? (
           <CadUpload
             attemptId={attemptId!}

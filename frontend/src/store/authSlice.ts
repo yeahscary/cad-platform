@@ -4,14 +4,16 @@ interface AuthState {
   token: string | null;
   role: string | null;
   firstName: string | null;
+  userId: string | null;
   isAuth: boolean;
 }
 
 const initialState: AuthState = {
-  token: localStorage.getItem('token'),
-  role: localStorage.getItem('role'),
+  token:     localStorage.getItem('token'),
+  role:      localStorage.getItem('role'),
   firstName: localStorage.getItem('firstName'),
-  isAuth: !!localStorage.getItem('token'),
+  userId:    localStorage.getItem('userId'),
+  isAuth:    !!localStorage.getItem('token'),
 };
 
 const authSlice = createSlice({
@@ -19,19 +21,25 @@ const authSlice = createSlice({
   initialState,
   reducers: {
     setAuth(state, action) {
-      state.token = action.payload.accessToken;
-      state.role = action.payload.role;
-      state.firstName = action.payload.firstName;
-      state.isAuth = true;
-      localStorage.setItem('token', action.payload.accessToken);
-      localStorage.setItem('role', action.payload.role);
-      localStorage.setItem('firstName', action.payload.firstName);
+      const payload = action.payload;
+      state.token     = payload.accessToken;
+      state.role      = payload.role;
+      state.firstName = payload.firstName;
+      // Поддерживаем оба варианта написания: userId и UserId
+      state.userId    = payload.userId ?? payload.UserId ?? null;
+      state.isAuth    = true;
+
+      localStorage.setItem('token',     payload.accessToken);
+      localStorage.setItem('role',      payload.role);
+      localStorage.setItem('firstName', payload.firstName);
+      localStorage.setItem('userId',    payload.userId ?? payload.UserId ?? '');
     },
     logout(state) {
-      state.token = null;
-      state.role = null;
+      state.token     = null;
+      state.role      = null;
       state.firstName = null;
-      state.isAuth = false;
+      state.userId    = null;
+      state.isAuth    = false;
       localStorage.clear();
     }
   }

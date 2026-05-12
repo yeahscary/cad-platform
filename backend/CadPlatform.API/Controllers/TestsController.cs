@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
 using CadPlatform.Infrastructure.Persistence;
 using CadPlatform.Domain.Entities;
 
@@ -51,7 +51,6 @@ public class TestsController : ControllerBase
                         q.Text,
                         q.Type,
                         q.Points,
-                        // Варианты ответов БЕЗ поля IsCorrect — студент не должен видеть ответы!
                         Options = q.Options
                             .OrderBy(o => o.OrderIndex)
                             .Select(o => new { o.Id, o.Text })
@@ -62,19 +61,24 @@ public class TestsController : ControllerBase
         return Ok(test);
     }
 
-    // Создать тест (только для преподавателя)
+    // Создать тест
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateTestDto dto)
     {
+        // Берём первого преподавателя из БД как автора
+        var teacher = _db.Users.FirstOrDefault(u => u.Role == "Teacher");
+        if (teacher == null)
+            return BadRequest(new { error = "Преподаватель не найден" });
+
         var test = new Test
         {
             Title = dto.Title,
-            Description = dto.Description,
+            Description = dto.Description ?? string.Empty,
             IsPublished = false,
-            TimeLimitMinutes = dto.TimeLimitMinutes
+            TimeLimitMinutes = dto.TimeLimitMinutes,
+            CreatedById = teacher.Id
         };
 
-        // Добавляем вопросы
         for (int i = 0; i < dto.Questions.Count; i++)
         {
             var q = dto.Questions[i];
@@ -113,11 +117,11 @@ public class TestsController : ControllerBase
     }
 }
 
-// DTO для создания теста
+// DTO классы
 public class CreateTestDto
 {
     public string Title { get; set; } = string.Empty;
-    public string Description { get; set; } = string.Empty;
+    public string? Description { get; set; }
     public int? TimeLimitMinutes { get; set; }
     public List<CreateQuestionDto> Questions { get; set; } = new();
 }

@@ -60,6 +60,14 @@ export default function ResultsPage() {
                   <Box>
                     <Typography variant="h6">{r.testTitle}</Typography>
                     <Typography variant="body2" color="text.secondary">{date}</Typography>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() => navigate(`/attempt/${r.id}`)}
+                      sx={{ mt: 1 }}
+                    >
+                      Подробнее
+                    </Button>
                   </Box>
                   <Chip
                     label={passed ? 'Зачёт' : 'Не зачёт'}
